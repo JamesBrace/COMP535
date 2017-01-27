@@ -1,9 +1,11 @@
 package socs.network.node;
 
+import socs.network.message.SOSPFPacket;
 import socs.network.util.Configuration;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import java.io.*;
+import java.net.Socket;
+import java.net.UnknownHostException;
 
 
 public class Router {
@@ -19,6 +21,15 @@ public class Router {
     rd.simulatedIPAddress = config.getString("socs.network.router.ip");
     lsd = new LinkStateDatabase(rd);
   }
+
+    public static boolean isEmpty(Link[] ports) {
+        for (int i = 0; i < ports.length; i++) {
+            if (ports[i] != null) {
+                return false;
+            }
+        }
+        return true;
+    }
 
   /**
    * output the shortest path to the given destination ip
@@ -57,7 +68,98 @@ public class Router {
    * broadcast Hello to neighbors
    */
   private void processStart() {
+      //Make sure that current router is attached to at least one other router
+      if (isEmpty(ports)) {
+          System.err.println("You must attach to another router before starting.");
+          return;
+      }
 
+      Socket clientSocket = null;
+      ObjectOutputStream output = null;
+      ObjectInputStream input = null;
+
+      //Attempt to send a message to every port that current router is attached to
+      for (int i = 0; i < ports.length; i++) {
+
+          //if port is not being used, continue the loop
+          if (ports[i] == null) {
+              continue;
+          }
+
+          // Initialization section:
+          // Try to open a socket on the given port
+          // Try to open input and output streams
+          String hostname = ports[i].router2.processIPAddress;
+          short port = ports[i].router2.processPortNumber;
+
+          try {
+              clientSocket = new Socket(hostname, port);
+              output = new ObjectOutputStream(clientSocket.getOutputStream());
+              input = new ObjectInputStream(clientSocket.getInputStream());
+          } catch (UnknownHostException e) {
+              System.err.println("Don't know about host: " + hostname);
+          } catch (IOException e) {
+              System.err.println("Couldn't get I/O for the connection to: " + hostname);
+          }
+
+          // If everything has been initialized then we want to send a packet
+          // to the socket we have opened a connection to on the given port
+          try {
+              SOSPFPacket packet = new SOSPFPacket();
+
+              //set the data for the packet
+              packet.srcProcessIP = this.rd.processIPAddress;
+              packet.srcProcessPort = this.rd.processPortNumber;
+              packet.srcIP = this.rd.simulatedIPAddress;
+              packet.dstIP = ports[i].router2.simulatedIPAddress;
+              packet.sospfType = 0;
+              //figure this one out later
+              packet.routerID = "";
+              packet.neighborID = packet.srcIP;
+
+              //broadcast the HELLO packet
+              output.writeObject(packet);
+
+              //wait for response
+              SOSPFPacket incoming = null;
+
+              try {
+                  incoming = (SOSPFPacket) input.readObject();
+              } catch (ClassNotFoundException e) {
+                  System.out.println(e);
+                  return;
+              }
+
+              //check to make sure the packet received was a HELLO
+              if (incoming.sospfType != 0) {
+                  System.out.println("Error: did not receive a HELLO back!");
+                  return;
+              }
+
+              System.out.println("received HELLO from " + incoming.srcProcessPort + ";");
+
+              ports[i].router1.status = RouterStatus.TWO_WAY;
+
+              System.out.println("set " + incoming.srcProcessPort + "state to TWO_WAY");
+
+              //broadcast the HELLO packet
+              output.writeObject(packet);
+
+
+              // clean up:
+              // close the output stream
+              // close the input stream
+              // close the socket
+              output.close();
+              input.close();
+              clientSocket.close();
+
+          } catch (UnknownHostException e) {
+              System.err.println("Trying to connect to unknown host: " + e);
+          } catch (IOException e) {
+              System.err.println("IOException:  " + e);
+          }
+      }
   }
 
   /**
