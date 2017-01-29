@@ -31,6 +31,17 @@ public class Router {
         return true;
     }
 
+    public static void cleanUp(ObjectOutputStream output, ObjectInputStream input,
+                               Socket clientSocket) throws IOException {
+        // clean up:
+        // close the output stream
+        // close the input stream
+        // close the socket
+        output.close();
+        input.close();
+        clientSocket.close();
+    }
+
   /**
    * output the shortest path to the given destination ip
    * <p/>
@@ -121,38 +132,40 @@ public class Router {
               output.writeObject(packet);
 
               //wait for response
-              SOSPFPacket incoming = null;
+              SOSPFPacket incoming;
 
               try {
                   incoming = (SOSPFPacket) input.readObject();
               } catch (ClassNotFoundException e) {
-                  System.out.println(e);
+                  System.err.println(e);
+                  return;
+              } catch (NullPointerException e) {
+                  System.err.println(e);
                   return;
               }
 
               //check to make sure the packet received was a HELLO
-              if (incoming.sospfType != 0) {
+              if (incoming == null || incoming.sospfType != 0) {
                   System.out.println("Error: did not receive a HELLO back!");
+
+                  // clean up
+                  cleanUp(output, input, clientSocket);
                   return;
               }
 
-              System.out.println("received HELLO from " + incoming.srcProcessPort + ";");
+              System.out.println("received HELLO from " + incoming.srcIP + ";");
 
               ports[i].router1.status = RouterStatus.TWO_WAY;
 
-              System.out.println("set " + incoming.srcProcessPort + "state to TWO_WAY");
+              System.out.println("set " + incoming.srcIP + "state to TWO_WAY");
 
               //broadcast the HELLO packet
               output.writeObject(packet);
 
 
-              // clean up:
-              // close the output stream
-              // close the input stream
-              // close the socket
-              output.close();
-              input.close();
-              clientSocket.close();
+              // clean up
+              cleanUp(output, input, clientSocket);
+
 
           } catch (UnknownHostException e) {
               System.err.println("Trying to connect to unknown host: " + e);
@@ -229,5 +242,6 @@ public class Router {
       e.printStackTrace();
     }
   }
+
 
 }

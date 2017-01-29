@@ -1,6 +1,7 @@
 package socs.network;
 
 import socs.network.node.Router;
+import socs.network.node.Server;
 import socs.network.util.Configuration;
 
 public class Main {
@@ -12,5 +13,8 @@ public class Main {
     }
     Router r = new Router(new Configuration(args[0]));
     r.terminal();
+
+      Thread server = new Thread(new Server(r));
+      server.start();
   }
 }
