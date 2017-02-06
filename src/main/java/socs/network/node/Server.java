@@ -14,10 +14,10 @@ public class Server implements Runnable {
 
     public void run() {
         try {
-            while (true) {
+            // creates server socket and binds it to port 5000
+            ServerSocket socket = new ServerSocket(router.rd.processPortNumber); //will need to figure out how to configure port numbers properly
 
-                // creates server socket and binds it to port 5000
-                ServerSocket socket = new ServerSocket(router.rd.processPortNumber); //will need to figure out how to configure port numbers properly
+            while (true) {
 
                 // the server socket will listen to this port indefinitely
                 Socket listener = socket.accept();

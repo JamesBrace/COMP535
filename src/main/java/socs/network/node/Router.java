@@ -6,7 +6,7 @@ import socs.network.util.Configuration;
 import java.io.*;
 import java.net.Socket;
 import java.net.UnknownHostException;
-
+import java.util.concurrent.TimeUnit;
 
 
 public class Router {
@@ -259,11 +259,19 @@ public class Router {
    * output the neighbors of the routers
    */
   private void processNeighbors() {
-	  for(int i=0;i<ports.length;i++)
-		  if(ports[i]!=null){
-			  System.out.println("IP address of the neighbor"+(i+1));
-			  System.out.println(ports[i].router2.processIPAddress);
-		  }
+      if (isEmpty(ports)) {
+          System.out.println("Ports are empty. No neighbors.");
+      } else {
+          for (int i = 0; i < ports.length; i++) {
+              if (ports[i] != null) {
+                  System.out.println("IP address of neighbor " + (i + 1));
+                  System.out.println(ports[i].router2.simulatedIPAddress);
+              }
+          }
+      }
+
+
+
   }
 
   /**
@@ -279,7 +287,6 @@ public class Router {
       BufferedReader br = new BufferedReader(isReader);
       System.out.print(">> ");
       String command = br.readLine();
-        System.out.print(command);
       while (true) {
         if (command.startsWith("detect ")) {
           String[] cmdLine = command.split(" ");
@@ -306,6 +313,8 @@ public class Router {
           //invalid command
           break;
         }
+
+          TimeUnit.SECONDS.sleep(2);
         System.out.print(">> ");
         command = br.readLine();
       }
