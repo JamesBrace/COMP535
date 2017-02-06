@@ -22,7 +22,13 @@ public class Router {
         rd.simulatedIPAddress = config.getString("socs.network.router.ip");
         rd.processPortNumber = config.getShort("socs.network.router.port");
 
-        rd.processIPAddress = "localhost";
+        try {
+            rd.processIPAddress = java.net.InetAddress.getLocalHost().getHostAddress();
+        } catch (UnknownHostException e) {
+            System.err.println("Host IP does not exist");
+        }
+
+
 
         lsd = new LinkStateDatabase(rd);
     }
@@ -85,10 +91,10 @@ public class Router {
 	  remote.simulatedIPAddress = simulatedIP;
 
 
-      if (!processIP.equals("localhost")) {
-          System.err.println("Sorry can only connect to localhost");
-          return;
-      }
+//      if (!processIP.equals("localhost")) {
+//          System.err.println("Sorry can only connect to localhost");
+//          return;
+//      }
 
       // find first available port
       int i;
@@ -200,16 +206,27 @@ public class Router {
 
 
               //wait for response
-              SOSPFPacket incoming;
+              Object incoming_unk;
 
               try {
-                  incoming = (SOSPFPacket) input.readObject();
+                  incoming_unk = input.readObject();
               } catch (ClassNotFoundException e) {
                   System.err.println("Corrupted packet");
                   return;
               } catch (NullPointerException e) {
-                  System.err.println("Null packed");
+                  System.err.println("Null packet");
                   return;
+              }
+
+              SOSPFPacket incoming;
+
+              // this should only happen if receiving "Ports are full error". Use case ends
+              if (incoming_unk instanceof String) {
+                  String temp = (String) incoming_unk;
+                  System.out.println(temp);
+                  return;
+              } else {
+                  incoming = (SOSPFPacket) incoming_unk;
               }
 
               //check to make sure the packet received was a HELLO

@@ -29,7 +29,7 @@ class ClientHandler implements Runnable {
 
                 if (request != null) {
 
-                    // check to see if received request is a string and handle it accordinglt
+                    // check to see if received request is a string (this only happens with attach) and handle it accordingly
                     if (request instanceof String) {
                         String request_new = (String) request;
 
@@ -42,15 +42,44 @@ class ClientHandler implements Runnable {
 
                         //Received a HELLO!
                         if (request_new.sospfType == 0) {
+
+                            //check to see if all ports are currently full and respond accordingly
+                            int j;
+                            for (j = 0; router.ports[j] != null; j++) {
+                                if (j == 3) {
+                                    outStream.writeObject("Error: All ports on the requested router are busy!");
+                                    return;
+                                }
+                            }
+
                             System.out.println("received HELLO from " + request_new.srcIP + ";");
 
-                            //Need to identify which link this is coming from
-                            int port = -1;
+                            // check to make sure link doesnt already create so that you dont add duplicates
+                            String tempIP = request_new.srcIP;
+                            boolean exists = false;
 
                             for (int i = 0; i < 4; i++) {
-                                if (router.ports[i].router2.simulatedIPAddress.equals(request_new.srcIP)) {
-                                    port = i;
-                                    break;
+                                if (router.ports[i] != null && router.ports[i].router2.simulatedIPAddress.equals(tempIP)) {
+                                    exists = true;
+                                }
+                            }
+
+                            int port = -1;
+
+                            if (!exists) {
+                                RouterDescription router2 = new RouterDescription();
+                                router2.processIPAddress = request_new.srcProcessIP;
+                                router2.simulatedIPAddress = request_new.srcIP;
+                                router2.processPortNumber = request_new.srcProcessPort;
+                                router.ports[j] = new Link(router.rd, router2);
+                                port = j;
+                            } else {
+                                //Need to identify which link this is coming from
+                                for (int i = 0; i < 4; i++) {
+                                    if (router.ports[i] != null && router.ports[i].router2.simulatedIPAddress.equals(request_new.srcIP)) {
+                                        port = i;
+                                        break;
+                                    }
                                 }
                             }
 
@@ -91,6 +120,8 @@ class ClientHandler implements Runnable {
                             router.ports[port].router2.status = RouterStatus.TWO_WAY;
 
                             System.out.println("set " + request_new.srcIP + "state to TWO_WAY");
+
+                            System.out.print(">> ");
 
                             // clean up
                             Router.cleanUp(outStream, inStream, listener);
