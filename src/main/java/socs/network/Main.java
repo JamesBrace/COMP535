@@ -11,10 +11,16 @@ public class Main {
       System.out.println("usage: program conf_path");
       System.exit(1);
     }
+    //creates router that will perform all the actions
     Router r = new Router(new Configuration(args[0]));
+
+    //have a separate entity accepting and handling incoming client requests
+    Thread server = new Thread(new Server(r));
+    server.start();
+
+    System.out.println("starting terminal");
+
     r.terminal();
 
-      Thread server = new Thread(new Server(r));
-      server.start();
   }
 }

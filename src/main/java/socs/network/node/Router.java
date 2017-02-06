@@ -4,9 +4,9 @@ import socs.network.message.SOSPFPacket;
 import socs.network.util.Configuration;
 
 import java.io.*;
-import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
+
 
 
 public class Router {
@@ -18,10 +18,14 @@ public class Router {
   //assuming that all routers are with 4 ports
   Link[] ports = new Link[4];
 
-  public Router(Configuration config) {
-    rd.simulatedIPAddress = config.getString("socs.network.router.ip");
-    lsd = new LinkStateDatabase(rd);
-  }
+    public Router(Configuration config) {
+        rd.simulatedIPAddress = config.getString("socs.network.router.ip");
+        rd.processPortNumber = config.getShort("socs.network.router.port");
+
+        rd.processIPAddress = "localhost";
+
+        lsd = new LinkStateDatabase(rd);
+    }
 
     public static boolean isEmpty(Link[] ports) {
         for (int i = 0; i < ports.length; i++) {
@@ -66,28 +70,72 @@ public class Router {
 
   /**
    * attach the link to the remote router, which is identified by the given simulated ip;
-   * to establish the connection via socket, you need to indentify the process IP and process Port;
+   * to establish the connection via socket, you need to identify the process IP and process Port;
    * additionally, weight is the cost to transmitting data through the link
    * <p/>
    * NOTE: this command should not trigger link database synchronization
- * @throws IOException 
+   * @throws IOException
    */
-  private void processAttach(String processIP, short processPort,
-                             String simulatedIP, short weight) throws IOException {
-	  RouterDescription remote = new RouterDescription();
-	  remote.processIPAddress = processIP;
-	  remote.processPortNumber = processPort;
+  private void processAttach(String processIP, short processPort, String simulatedIP, short weight) throws IOException {
+
+      // setup RouterDescription for the desired router
+      RouterDescription remote = new RouterDescription();
+      remote.processIPAddress = processIP;
+      remote.processPortNumber = processPort;
 	  remote.simulatedIPAddress = simulatedIP;
-	  int i;
-	  for(i=0; ports[i]!=null; i++);
-	  ports[i] = new Link(rd, remote);
-	  System.out.println(rd.processPortNumber);
-	  try(
-			  ServerSocket serverSocket = new ServerSocket(processPort);
-			  Socket clientSocket = serverSocket.accept();
-			  PrintWriter out = new PrintWriter(clientSocket.getOutputStream(),true);
-			  BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-	  ){}
+
+
+      if (!processIP.equals("localhost")) {
+          System.err.println("Sorry can only connect to localhost");
+          return;
+      }
+
+      // find first available port
+      int i;
+      try {
+          for (i = 0; ports[i] != null; i++) ;
+      } catch (NullPointerException e) {
+          System.err.println("No more ports available!");
+          return;
+      }
+
+      // print out the available port number
+      System.out.println(rd.processPortNumber);
+
+      // attempt to connect with desired router
+      try {
+
+          Socket clientSocket = new Socket(processIP, processPort);
+
+          ObjectOutputStream output = new ObjectOutputStream(clientSocket.getOutputStream());
+          ObjectInputStream input = new ObjectInputStream(clientSocket.getInputStream());
+
+          // make sure the router is "connectable"
+          output.writeObject("Attempting to attach.");
+
+          try {
+              String incoming = (String) input.readObject();
+              if (incoming.equals("Ok.")) {
+                  // if all goes well, assign the new router link to the available port
+                  ports[i] = new Link(rd, remote);
+                  cleanUp(output, input, clientSocket);
+              }
+          } catch (ClassNotFoundException e) {
+              System.err.println(e);
+          } catch (NullPointerException e) {
+              System.err.println(e);
+          }
+
+      } catch (UnknownHostException e) {
+          System.err.println("Don't know about host ");
+      } catch (IOException e) {
+          System.err.println("Couldn't get I/O for the connection");
+      } catch (NullPointerException e) {
+          System.err.println("Requested address is null");
+      } catch (IllegalArgumentException e) {
+          System.err.println("The port parameter is outside the specified range of valid port values, which is between 0 and 65535, inclusive");
+      }
+
   }
 
   /**
@@ -144,7 +192,12 @@ public class Router {
               packet.neighborID = packet.srcIP;
 
               //broadcast the HELLO packet
-              output.writeObject(packet);
+              try {
+                  output.writeObject(packet);
+              } catch (NullPointerException e) {
+                  System.err.println("Trying to send a null packet!");
+              }
+
 
               //wait for response
               SOSPFPacket incoming;
@@ -152,10 +205,10 @@ public class Router {
               try {
                   incoming = (SOSPFPacket) input.readObject();
               } catch (ClassNotFoundException e) {
-                  System.err.println(e);
+                  System.err.println("Corrupted packet");
                   return;
               } catch (NullPointerException e) {
-                  System.err.println(e);
+                  System.err.println("Null packed");
                   return;
               }
 
@@ -226,6 +279,7 @@ public class Router {
       BufferedReader br = new BufferedReader(isReader);
       System.out.print(">> ");
       String command = br.readLine();
+        System.out.print(command);
       while (true) {
         if (command.startsWith("detect ")) {
           String[] cmdLine = command.split(" ");
