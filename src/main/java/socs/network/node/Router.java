@@ -198,7 +198,9 @@ public class Router {
               try {
                   output.writeObject(packet);
               } catch (NullPointerException e) {
+                  cleanUp(output, input, clientSocket);
                   System.err.println("Trying to send a null packet!");
+                  return;
               }
 
 
@@ -208,9 +210,11 @@ public class Router {
               try {
                   incoming_unk = input.readObject();
               } catch (ClassNotFoundException e) {
+                  cleanUp(output, input, clientSocket);
                   System.err.println("Corrupted packet");
                   return;
               } catch (NullPointerException e) {
+                  cleanUp(output, input, clientSocket);
                   System.err.println("Null packet");
                   return;
               }
@@ -221,6 +225,7 @@ public class Router {
               if (incoming_unk instanceof String) {
                   String temp = (String) incoming_unk;
                   System.out.println(temp);
+                  cleanUp(output, input, clientSocket);
                   return;
               } else {
                   incoming = (SOSPFPacket) incoming_unk;
@@ -283,9 +288,6 @@ public class Router {
               }
           }
       }
-
-
-
   }
 
   /**

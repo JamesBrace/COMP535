@@ -48,6 +48,8 @@ class ClientHandler implements Runnable {
                             for (j = 0; router.ports[j] != null; j++) {
                                 if (j == 3) {
                                     outStream.writeObject("Error: All ports on the requested router are busy!");
+                                    // clean up
+                                    Router.cleanUp(outStream, inStream, listener);
                                     return;
                                 }
                             }
@@ -56,13 +58,11 @@ class ClientHandler implements Runnable {
 
                             // check to make sure link doesnt already exist so that you dont add duplicates
                             String tempIP = request_new.srcIP;
-                            System.out.println("tempIP: " + tempIP);
                             boolean exists = false;
 
                             for (int i = 0; i < 4; i++) {
                                 if (router.ports[i] != null && router.ports[i].router2.simulatedIPAddress.equals(tempIP)) {
                                     exists = true;
-                                    System.out.print("line 63: " + exists);
                                 }
                             }
 
@@ -88,7 +88,7 @@ class ClientHandler implements Runnable {
                             //Change the status of the client router to INIT
                             router.ports[port].router2.status = RouterStatus.INIT;
 
-                            System.out.println("set " + request_new.srcIP + "state to INIT");
+                            System.out.println("set " + request_new.srcIP + " state to INIT");
 
                             //Create outgoing packet
                             SOSPFPacket packet = new SOSPFPacket();
@@ -121,9 +121,9 @@ class ClientHandler implements Runnable {
 
                             router.ports[port].router2.status = RouterStatus.TWO_WAY;
 
-                            System.out.println("set " + request_new.srcIP + "state to TWO_WAY");
+                            System.out.println("set " + request_new.srcIP + " state to TWO_WAY");
 
-                            System.out.print(">> ");
+                            System.out.print(">>");
 
                             // clean up
                             Router.cleanUp(outStream, inStream, listener);
