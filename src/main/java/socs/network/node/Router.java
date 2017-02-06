@@ -4,6 +4,7 @@ import socs.network.message.SOSPFPacket;
 import socs.network.util.Configuration;
 
 import java.io.*;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
 
@@ -69,10 +70,24 @@ public class Router {
    * additionally, weight is the cost to transmitting data through the link
    * <p/>
    * NOTE: this command should not trigger link database synchronization
+ * @throws IOException 
    */
   private void processAttach(String processIP, short processPort,
-                             String simulatedIP, short weight) {
-
+                             String simulatedIP, short weight) throws IOException {
+	  RouterDescription remote = new RouterDescription();
+	  remote.processIPAddress = processIP;
+	  remote.processPortNumber = processPort;
+	  remote.simulatedIPAddress = simulatedIP;
+	  int i;
+	  for(i=0; ports[i]!=null; i++);
+	  ports[i] = new Link(rd, remote);
+	  System.out.println(rd.processPortNumber);
+	  try(
+			  ServerSocket serverSocket = new ServerSocket(processPort);
+			  Socket clientSocket = serverSocket.accept();
+			  PrintWriter out = new PrintWriter(clientSocket.getOutputStream(),true);
+			  BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+	  ){}
   }
 
   /**
@@ -191,7 +206,11 @@ public class Router {
    * output the neighbors of the routers
    */
   private void processNeighbors() {
-
+	  for(int i=0;i<ports.length;i++)
+		  if(ports[i]!=null){
+			  System.out.println("IP address of the neighbor"+(i+1));
+			  System.out.println(ports[i].router2.processIPAddress);
+		  }
   }
 
   /**
