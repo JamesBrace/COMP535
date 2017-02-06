@@ -54,13 +54,15 @@ class ClientHandler implements Runnable {
 
                             System.out.println("received HELLO from " + request_new.srcIP + ";");
 
-                            // check to make sure link doesnt already create so that you dont add duplicates
+                            // check to make sure link doesnt already exist so that you dont add duplicates
                             String tempIP = request_new.srcIP;
+                            System.out.println("tempIP: " + tempIP);
                             boolean exists = false;
 
                             for (int i = 0; i < 4; i++) {
                                 if (router.ports[i] != null && router.ports[i].router2.simulatedIPAddress.equals(tempIP)) {
                                     exists = true;
+                                    System.out.print("line 63: " + exists);
                                 }
                             }
 

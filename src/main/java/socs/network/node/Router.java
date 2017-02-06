@@ -105,9 +105,6 @@ public class Router {
           return;
       }
 
-      // print out the available port number
-      System.out.println(rd.processPortNumber);
-
       // attempt to connect with desired router
       try {
 
