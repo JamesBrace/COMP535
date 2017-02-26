@@ -1,22 +1,26 @@
 package socs.network.node;
 
+import socs.network.message.LSA;
+import socs.network.message.LinkDescription;
 import socs.network.message.SOSPFPacket;
 import socs.network.util.Configuration;
 
 import java.io.*;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.LinkedList;
+import java.util.Vector;
 import java.util.concurrent.TimeUnit;
 
 
 public class Router {
 
-  protected LinkStateDatabase lsd;
+    protected LinkStateDatabase lsd;
 
-  RouterDescription rd = new RouterDescription();
+    RouterDescription rd = new RouterDescription();
 
-  //assuming that all routers are with 4 ports
-  Link[] ports = new Link[4];
+    //assuming that all routers are with 4 ports
+    Link[] ports = new Link[4];
 
     public Router(Configuration config) {
         rd.simulatedIPAddress = config.getString("socs.network.router.ip");
@@ -29,9 +33,13 @@ public class Router {
         }
 
 
-
         lsd = new LinkStateDatabase(rd);
     }
+
+
+    /**
+     * HELPER FUNCTIONS
+     */
 
     public static boolean isEmpty(Link[] ports) {
         for (int i = 0; i < ports.length; i++) {
@@ -48,24 +56,162 @@ public class Router {
         // close the output stream
         // close the input stream
         // close the socket
-        output.close();
-        input.close();
+        if(output != null) {
+            output.close();
+        }
+        if (input != null) {
+            input.close();
+        }
         clientSocket.close();
     }
 
-  /**
-   * output the shortest path to the given destination ip
-   * <p/>
-   * format: source ip address  -> ip address -> ... -> destination ip
-   *
-   * @param destinationIP the ip adderss of the destination simulated router
-   */
-  private void processDetect(String destinationIP) {
+    public int freePort() {
+        //make sure ports are available
+        for (int i = 0; i < 4; i++) {
+            if (ports[i] == null) {
+                return i;
+            }
+        }
+        return -1;
+    }
 
-  }
+    public LSA constructLSA() {
+        LSA temp = new LSA();
+        temp.linkStateID = this.rd.simulatedIPAddress;
 
-  /**
-   * disconnect with the router identified by the given destination ip address
+        //check if this is the first LSA being sent
+        if (lsd._store.get(this.rd.simulatedIPAddress).lsaSeqNumber == Integer.MIN_VALUE) {
+            temp.lsaSeqNumber = 0;
+
+            //debug
+            System.out.println("lsaSeqNumber: " + temp.lsaSeqNumber);
+        } else {
+            int latest = lsd._store.get(this.rd.simulatedIPAddress).lsaSeqNumber;
+            temp.lsaSeqNumber = latest + 1;
+
+            //debug
+            System.out.println("lsaSeqNumber: " + temp.lsaSeqNumber);
+        }
+
+        //get all links from array
+        LinkedList<LinkDescription> links = new LinkedList<LinkDescription>();
+
+        for (int i = 0; i < 4; i++) {
+            if (ports[i] != null) {
+                if (ports[i].router2.status != null) {
+                    //debug
+                    System.out.println("Adding to links");
+                    LinkDescription ld = new LinkDescription();
+                    ld.linkID = ports[i].router2.simulatedIPAddress;
+                    ld.portNum = ports[i].router2.processPortNumber;
+                    ld.tosMetrics = ports[i].weight;
+                    links.add(ld);
+                }
+            }
+        }
+
+        temp.links = links;
+        return temp;
+    }
+
+    public SOSPFPacket constructPacket(String dest, LSA lsa) {
+        SOSPFPacket packet = new SOSPFPacket();
+        //set the data for the packet
+        packet.srcProcessIP = this.rd.processIPAddress;
+        packet.srcProcessPort = this.rd.processPortNumber;
+        packet.srcIP = this.rd.simulatedIPAddress;
+        packet.dstIP = dest; //ports[i].router2.simulatedIPAddress;
+
+        //figure this one out later
+        packet.routerID = "";
+        packet.neighborID = packet.srcIP;
+
+        //CONFUSED ON WHY THERE ARE MULTIPLE LSA'S
+        if (lsa != null) {
+            System.out.println(lsa);
+            packet.sospfType = 1;
+
+            //create a temp vector and add LSA to it
+            Vector<LSA> links = new Vector<LSA>();
+            links.add(lsa);
+
+            packet.lsaArray = links;
+        } else {
+            packet.sospfType = 0;
+        }
+
+        return packet;
+    }
+
+    /**
+     * Either receives nothing and is in charge of creating new LSA and sending LSAUPDATE to all neighbors
+     * or is simply just forwarding a recently received LSAUPDATE. Both cases it updates its current LSA Database
+     *
+     * @param forwardPacket SOSPFPacket
+     * @param IP_Ignore     String
+     * @throws IOException e
+     */
+    public void broadcastUpdate(SOSPFPacket forwardPacket, String IP_Ignore) throws IOException {
+        //LSAUPDATE WILL HAPPEN HERE!
+        if (forwardPacket == null) {
+            LSA lsa = constructLSA();
+
+            //update LinkStateDatabase
+            lsd._store.put(lsa.linkStateID, lsa);
+
+            for (int i = 0; i < 4; i++) {
+                if (ports[i] != null) {
+
+                    Socket clientSocket = new Socket(ports[i].router2.processIPAddress, ports[i].router2.processPortNumber);
+
+                    ObjectOutputStream output = new ObjectOutputStream(clientSocket.getOutputStream());
+
+                    SOSPFPacket LSAUPDATE = constructPacket(this.ports[i].router2.simulatedIPAddress, lsa);
+
+                    //broadcast the LSAUPDATE packet
+                    output.writeObject(LSAUPDATE);
+
+                    cleanUp(output, null, clientSocket);
+                }
+            }
+        } else {
+            //update LinkStateDatabase
+            LSA lsa = forwardPacket.lsaArray.lastElement();
+
+            for (int i = 0; i < 4; i++) {
+                if (ports[i] != null) {
+
+                    Socket clientSocket = new Socket(ports[i].router2.processIPAddress, ports[i].router2.processPortNumber);
+
+                    ObjectOutputStream output = new ObjectOutputStream(clientSocket.getOutputStream());
+
+                    //broadcast the LSAUPDATE packet
+                    output.writeObject(forwardPacket);
+
+                    cleanUp(output, null, clientSocket);
+                }
+
+            }
+
+        }
+
+
+    }
+
+
+    /**
+     * output the shortest path to the given destination ip
+     * <p/>
+     * format: source ip address  -> ip address -> ... -> destination ip
+     *
+     * @param destinationIP the ip adderss of the destination simulated router
+     */
+    private void processDetect(String destinationIP) {
+        this.lsd.getShortestPath(destinationIP);
+    }
+
+    /**
+     * disconnect with the router identified by the given destination ip address
    * Notice: this command should trigger the synchronization of database
    *
    * @param portNumber the port number which the link attaches at
@@ -90,20 +236,24 @@ public class Router {
       remote.processPortNumber = processPort;
 	  remote.simulatedIPAddress = simulatedIP;
 
-
-//      if (!processIP.equals("localhost")) {
-//          System.err.println("Sorry can only connect to localhost");
-//          return;
-//      }
+	  //check to make sure isn't already attached to requested remote router
+      for (int x = 0; x < 4; x++) {
+          if (ports[x] != null) {
+              if (ports[x].router2.simulatedIPAddress.equals(simulatedIP)) {
+                  System.err.println("You are already attached to this router!");
+                  return;
+              }
+          }
+      }
 
       // find first available port
-      int i;
-      try {
-          for (i = 0; ports[i] != null; i++) ;
-      } catch (NullPointerException e) {
+      int free = freePort();
+
+      if (free == -1) {
           System.err.println("No more ports available!");
           return;
       }
+
 
       // attempt to connect with desired router
       try {
@@ -120,7 +270,7 @@ public class Router {
               String incoming = (String) input.readObject();
               if (incoming.equals("Ok.")) {
                   // if all goes well, assign the new router link to the available port
-                  ports[i] = new Link(rd, remote);
+                  ports[free] = new Link(rd, remote, weight);
                   cleanUp(output, input, clientSocket);
               }
           } catch (ClassNotFoundException e) {
@@ -182,17 +332,17 @@ public class Router {
           // If everything has been initialized then we want to send a packet
           // to the socket we have opened a connection to on the given port
           try {
-              SOSPFPacket packet = new SOSPFPacket();
+              SOSPFPacket packet = constructPacket(ports[i].router2.simulatedIPAddress, null);
 
-              //set the data for the packet
-              packet.srcProcessIP = this.rd.processIPAddress;
-              packet.srcProcessPort = this.rd.processPortNumber;
-              packet.srcIP = this.rd.simulatedIPAddress;
-              packet.dstIP = ports[i].router2.simulatedIPAddress;
-              packet.sospfType = 0;
-              //figure this one out later
-              packet.routerID = "";
-              packet.neighborID = packet.srcIP;
+              //                //set the data for the packet
+              //                packet.srcProcessIP = this.rd.processIPAddress;
+              //                packet.srcProcessPort = this.rd.processPortNumber;
+              //                packet.srcIP = this.rd.simulatedIPAddress;
+              //                packet.dstIP = ports[i].router2.simulatedIPAddress;
+              //                packet.sospfType = 0;
+              //                //figure this one out later
+              //                packet.routerID = "";
+              //                packet.neighborID = packet.srcIP;
 
               //broadcast the HELLO packet
               try {
@@ -243,12 +393,19 @@ public class Router {
               System.out.println("received HELLO from " + incoming.srcIP + ";");
 
               ports[i].router1.status = RouterStatus.TWO_WAY;
+              ports[i].router2.status = RouterStatus.TWO_WAY;
 
               System.out.println("set " + incoming.srcIP + "state to TWO_WAY");
 
-              //broadcast the HELLO packet
+              //send back the HELLO packet
               output.writeObject(packet);
 
+              //broadcast LSAUPDATE to neighbors
+
+              //debug
+              System.out.println("About to send LSAUPDATEs");
+
+              broadcastUpdate(null, null);
 
               // clean up
               cleanUp(output, input, clientSocket);
@@ -262,7 +419,7 @@ public class Router {
       }
   }
 
-  /**
+    /**
    * attach the link to the remote router, which is identified by the given simulated ip;
    * to establish the connection via socket, you need to indentify the process IP and process Port;
    * additionally, weight is the cost to transmitting data through the link
@@ -278,14 +435,19 @@ public class Router {
    * output the neighbors of the routers
    */
   private void processNeighbors() {
+      boolean attached = true;
       if (isEmpty(ports)) {
-          System.out.println("Ports are empty. No neighbors.");
+          System.err.println("Ports are empty. No neighbors.");
       } else {
           for (int i = 0; i < ports.length; i++) {
-              if (ports[i] != null) {
+              if (ports[i] != null && ports[i].router2.status != null) {
+                  attached = false;
                   System.out.println("IP address of neighbor " + (i + 1));
                   System.out.println(ports[i].router2.simulatedIPAddress);
               }
+          }
+          if (attached) {
+              System.err.println("Ports are empty, but you have attached to other routers. Run start to create links.");
           }
       }
   }
@@ -331,7 +493,7 @@ public class Router {
         }
 
           TimeUnit.SECONDS.sleep(2);
-        System.out.print(">> ");
+          System.out.print(">> ");
         command = br.readLine();
       }
       isReader.close();
