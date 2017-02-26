@@ -81,16 +81,13 @@ public class Router {
 
         //check if this is the first LSA being sent
         if (lsd._store.get(this.rd.simulatedIPAddress).lsaSeqNumber == Integer.MIN_VALUE) {
+
             temp.lsaSeqNumber = 0;
 
-            //debug
-            System.out.println("lsaSeqNumber: " + temp.lsaSeqNumber);
         } else {
+
             int latest = lsd._store.get(this.rd.simulatedIPAddress).lsaSeqNumber;
             temp.lsaSeqNumber = latest + 1;
-
-            //debug
-            System.out.println("lsaSeqNumber: " + temp.lsaSeqNumber);
         }
 
         //get all links from array
@@ -99,8 +96,7 @@ public class Router {
         for (int i = 0; i < 4; i++) {
             if (ports[i] != null) {
                 if (ports[i].router2.status != null) {
-                    //debug
-                    System.out.println("Adding to links");
+
                     LinkDescription ld = new LinkDescription();
                     ld.linkID = ports[i].router2.simulatedIPAddress;
                     ld.portNum = ports[i].router2.processPortNumber;
@@ -115,7 +111,9 @@ public class Router {
     }
 
     public SOSPFPacket constructPacket(String dest, LSA lsa) {
+
         SOSPFPacket packet = new SOSPFPacket();
+
         //set the data for the packet
         packet.srcProcessIP = this.rd.processIPAddress;
         packet.srcProcessPort = this.rd.processPortNumber;
@@ -190,12 +188,8 @@ public class Router {
 
                     cleanUp(output, null, clientSocket);
                 }
-
             }
-
         }
-
-
     }
 
 
@@ -207,7 +201,9 @@ public class Router {
      * @param destinationIP the ip adderss of the destination simulated router
      */
     private void processDetect(String destinationIP) {
-        this.lsd.getShortestPath(destinationIP);
+
+        String path = this.lsd.getShortestPath(destinationIP);
+        System.out.println(path);
     }
 
     /**
@@ -235,6 +231,13 @@ public class Router {
       remote.processIPAddress = processIP;
       remote.processPortNumber = processPort;
 	  remote.simulatedIPAddress = simulatedIP;
+
+      //check to make sure you aren't attaching to yourself
+      if (simulatedIP.equals(this.rd.simulatedIPAddress)) {
+          System.err.println("You can't attach to yourself!");
+          return;
+      }
+
 
 	  //check to make sure isn't already attached to requested remote router
       for (int x = 0; x < 4; x++) {
@@ -334,16 +337,6 @@ public class Router {
           try {
               SOSPFPacket packet = constructPacket(ports[i].router2.simulatedIPAddress, null);
 
-              //                //set the data for the packet
-              //                packet.srcProcessIP = this.rd.processIPAddress;
-              //                packet.srcProcessPort = this.rd.processPortNumber;
-              //                packet.srcIP = this.rd.simulatedIPAddress;
-              //                packet.dstIP = ports[i].router2.simulatedIPAddress;
-              //                packet.sospfType = 0;
-              //                //figure this one out later
-              //                packet.routerID = "";
-              //                packet.neighborID = packet.srcIP;
-
               //broadcast the HELLO packet
               try {
                   output.writeObject(packet);
@@ -352,7 +345,6 @@ public class Router {
                   System.err.println("Trying to send a null packet!");
                   return;
               }
-
 
               //wait for response
               Object incoming_unk;
@@ -395,16 +387,12 @@ public class Router {
               ports[i].router1.status = RouterStatus.TWO_WAY;
               ports[i].router2.status = RouterStatus.TWO_WAY;
 
-              System.out.println("set " + incoming.srcIP + "state to TWO_WAY");
+              System.out.println("set " + incoming.srcIP + " state to TWO_WAY");
 
               //send back the HELLO packet
               output.writeObject(packet);
 
               //broadcast LSAUPDATE to neighbors
-
-              //debug
-              System.out.println("About to send LSAUPDATEs");
-
               broadcastUpdate(null, null);
 
               // clean up

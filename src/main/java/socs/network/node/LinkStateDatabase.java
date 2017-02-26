@@ -18,51 +18,95 @@ public class LinkStateDatabase {
     _store.put(l.linkStateID, l);
   }
 
-  /**
-   * output the shortest path from this router to the destination with the given IP address
-   */
-  String getShortestPath(String destinationIP) {
+    /**
+     * output the shortest path from this router to the destination with the given IP address
+     */
+    String getShortestPath(String destinationIP) {
 
-      //initialize all the required data structure for djikstra's algorithm
-      HashSet<LSA> confirmed = new HashSet<LSA>();
-      HashSet<LSA> tentative = new HashSet<LSA>();
-      HashMap<LSA, Integer> distance = new HashMap<LSA, Integer>();
-      HashMap<LSA, LSA> predecessors = new HashMap<LSA, LSA>();
+        //initialize all the required data structure for Djikstra's algorithm
+        HashSet<LSA> confirmed = new HashSet<LSA>();
+        HashSet<LSA> tentative = new HashSet<LSA>();
+        HashMap<LSA, Integer> distance = new HashMap<LSA, Integer>();
+        HashMap<LSA, LSA> predecessors = new HashMap<LSA, LSA>();
 
-      //get the source LSA and add it to the distance and tentative list
-      LSA source = this._store.get(rd.simulatedIPAddress);
-      distance.put(source, 0);
-      tentative.add(source);
+        //get the source LSA and add it to the distance and tentative list
+        LSA source = this._store.get(rd.simulatedIPAddress);
+        distance.put(source, 0);
+        tentative.add(source);
 
-      //while there are remaining unevaluated nodes
-      while (tentative.size() > 0) {
-          LSA node = getMinimum(tentative, distance);
-          confirmed.add(node);
-          tentative.remove(node);
-          findMinimalDistances(node, predecessors, distance, tentative);
-      }
-      System.out.println("confirmed" + confirmed);
-      System.out.println("distance" + distance);
-      System.out.println("predecessors: " + predecessors);
+        //while there are remaining unevaluated nodes
+        while (tentative.size() > 0) {
+            LSA node = getMinimum(tentative, distance);
+            confirmed.add(node);
+            tentative.remove(node);
+            findMinimalDistances(node, predecessors, distance, tentative);
+        }
 
-      LinkedList<LSA> path = getPath(this._store.get(destinationIP), predecessors);
-      System.out.print("path" + path);
+        LinkedList<LSA> path = getPath(this._store.get(destinationIP), predecessors);
 
-      return path.toString();
 
-  }
+        //process the path to get the proper output
+        String output = "";
 
+        ListIterator<LSA> listIterator = path.listIterator();
+
+        while (listIterator.hasNext()) {
+            LSA current = listIterator.next();
+
+            String ip = current.linkStateID;
+
+
+            if (listIterator.hasNext()) {
+                String arrow = " -> ";
+
+                String neighbor = listIterator.next().linkStateID;
+                listIterator.previous();
+
+                int weight = -1;
+
+                for (LinkDescription ld : current.links) {
+                    if (ld.linkID.equals(neighbor)) {
+                        weight = ld.tosMetrics;
+                    }
+                }
+
+                String w = " (" + weight + ") ";
+
+                output = output + ip + " " + arrow + w;
+            } else {
+                output = output + " " + ip;
+            }
+        }
+
+        return output;
+    }
+
+    /**
+     *
+     * Expands the current node by finding all the neighbors, and then adds neighbors
+     *
+     * @param node
+     * @param predecessors
+     * @param distance
+     * @param tentative
+     */
     private void findMinimalDistances(LSA node, HashMap<LSA, LSA> predecessors, HashMap<LSA, Integer> distance, HashSet<LSA> tentative) {
+        //grab all the neighbors of the current node
         LinkedList<LSA> adjacentNodes = getNeighbors(node);
-        System.out.println("adjacentNodes: " + adjacentNodes);
+
+        //look at each neighbor node
         for (LSA target : adjacentNodes) {
-            System.out.println("target: " + target);
-            if (getShortestDistance(target, distance) > getShortestDistance(node, distance)
-                    + getDistance(node, target)) {
-                distance.put(target, getShortestDistance(node, distance)
-                        + getDistance(node, target));
-                predecessors.put(target, node);
-                tentative.add(target);
+
+            //if the current distance to the target (an arbitrary neighbor) is greater than the distance to the current node + the target
+            if (getShortestDistance(target, distance) > getShortestDistance(node, distance) + getDistance(node, target)) {
+
+                if (!predecessors.containsKey(target)) {
+                    //add the neighbor to the distance, predecessors, and tentative list
+                    distance.put(target, getShortestDistance(node, distance) + getDistance(node, target));
+                    predecessors.put(target, node);
+                    tentative.add(target);
+                }
+
             }
         }
 
@@ -70,11 +114,8 @@ public class LinkStateDatabase {
 
     private int getDistance(LSA node, LSA target) {
         for (LinkDescription link : node.links) {
-            System.err.println("link id: " + link.linkID);
-            System.err.println("linkstate id: " + target.linkStateID);
 
             if (link.linkID.equals(target.linkStateID)) {
-                System.out.println("metric: " + link.tosMetrics);
                 return link.tosMetrics;
             }
         }
@@ -83,12 +124,9 @@ public class LinkStateDatabase {
 
     private LinkedList<LSA> getNeighbors(LSA node) {
         LinkedList<LSA> neighbors = new LinkedList<LSA>();
-        System.out.println("node: " + node.toString());
-        System.out.println("node.links: " + node.links);
+
         for (LinkDescription link : node.links) {
-            System.out.println("linkid: " + link.linkID);
             LSA temp = _store.get(link.linkID);
-            System.out.println("temp: " + temp.toString());
             neighbors.add(temp);
         }
         return neighbors;
@@ -104,16 +142,6 @@ public class LinkStateDatabase {
             //if not minimum has been set yet then set first router to minimum
             minimum = (minimum == null || getShortestDistance(router, distance) <
                     getShortestDistance(minimum, distance)) ? router : minimum;
-
-//            if (minimum == null) {
-//                minimum = router;
-//
-//            //otherwise compare shortest distances to current minimum
-//            } else {
-//                if (getShortestDistance(router, distance) < getShortestDistance(minimum, distance)) {
-//                    minimum = router;
-//                }
-//            }
         }
         return minimum;
     }
@@ -123,14 +151,8 @@ public class LinkStateDatabase {
     }
 
     private int getShortestDistance(LSA destination, HashMap<LSA, Integer> distance) {
-//        Integer d = distance.get(destination);
 
         return (distance.get(destination) == null) ? Integer.MAX_VALUE : distance.get(destination);
-//        if (d == null) {
-//            return Integer.MAX_VALUE;
-//        } else {
-//            return d;
-//        }
     }
 
     /*
