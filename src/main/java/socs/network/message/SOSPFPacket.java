@@ -1,8 +1,7 @@
 package socs.network.message;
 
-import java.io.*;
+import java.io.Serializable;
 import java.util.Vector;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class SOSPFPacket implements Serializable {
 
@@ -15,8 +14,10 @@ public class SOSPFPacket implements Serializable {
   public String dstIP;
 
   //common header
-  public short sospfType; //0 - HELLO, 1 - LinkState Update
+  public short sospfType; //0 - HELLO, 1 - LinkState Update, 2 - CONNECT, 3 - DISCONNECT
   public String routerID;
+
+    public int HelloWeight;
 
   //used by HELLO message to identify the sender of the message
   //e.g. when router A sends HELLO to its neighbor, it has to fill this field with its own

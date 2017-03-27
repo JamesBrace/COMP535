@@ -14,8 +14,8 @@ public class Server implements Runnable {
 
     public void run() {
         try {
-            // creates server socket and binds it to port 5000
-            ServerSocket socket = new ServerSocket(router.rd.processPortNumber); //will need to figure out how to configure port numbers properly
+            //opens a socket that will constantly be looking for incoming requests
+            ServerSocket socket = new ServerSocket(router.rd.processPortNumber);
 
             while (true) {
 
