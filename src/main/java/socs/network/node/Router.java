@@ -431,8 +431,7 @@ public class Router {
   private void processStart() {
       //Make sure that current router is attached to at least one other router
       if (isEmpty(ports)) {
-          System.err.println("You must attach to another router before starting.");
-          return;
+          System.err.println("You have started, but aren't connected to any routers.");
       }
 
       hasStarted = true;
@@ -719,6 +718,7 @@ public class Router {
 
         //check to make sure you are connected to any remote routers
         if (!isConnected()) {
+            System.out.println("Quitting process was successful.");
             System.exit(0);
         }
 
@@ -726,7 +726,7 @@ public class Router {
         for (int i = 0; i < 4; i++) {
 
             //you can skip any null or non-started ports
-            if (ports[i] == null || ports[i].router2.status == RouterStatus.TWO_WAY) continue;
+            if (ports[i] == null || ports[i].router2.status != RouterStatus.TWO_WAY) continue;
 
             processDisconnect((short) i);
 
